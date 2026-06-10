@@ -1,0 +1,36 @@
+name: ws_music
+description: SW Music App by Waghmare Sukeshani.
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_bloc: ^8.1.5
+  http: ^1.2.1
+  connectivity_plus: ^6.0.3
+  just_audio: ^0.9.40
+  audioplayers: ^6.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+
+flutter_launcher_icons:
+  image_path: "assets/Image Jun 9, 2026, 10_14_45 PM.png"
+  android: true
+  ios: false
+  windows:
+    generate: true
+    image_path: "assets/Image Jun 9, 2026, 10_14_45 PM.png"
