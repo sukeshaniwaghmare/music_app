@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:share_plus/share_plus.dart';
 import '../blocs/track_detail/track_detail_bloc.dart';
 import '../blocs/track_detail/track_detail_event.dart';
 import '../blocs/track_detail/track_detail_state.dart';
@@ -46,7 +47,8 @@ class _TrackDetailView extends StatefulWidget {
   State<_TrackDetailView> createState() => _TrackDetailViewState();
 }
 
-class _TrackDetailViewState extends State<_TrackDetailView> {
+class _TrackDetailViewState extends State<_TrackDetailView>
+    with SingleTickerProviderStateMixin {
   final _audio = AudioPlayerService.instance;
   final _favService = FavoritesService.instance;
 
@@ -54,17 +56,8 @@ class _TrackDetailViewState extends State<_TrackDetailView> {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   bool _isFavorite = false;
-  Color _bgColor = const Color(0xFF121212);
-
   late Track _currentTrack;
-
-  static const _themes = [
-    {'label': 'Dark', 'color': Color(0xFF121212)},
-    {'label': 'Blue', 'color': Color(0xFF0D1B2A)},
-    {'label': 'Purple', 'color': Color(0xFF1A0A2E)},
-    {'label': 'Green', 'color': Color(0xFF0A1F0A)},
-    {'label': 'Red', 'color': Color(0xFF1F0A0A)},
-  ];
+  late AnimationController _rotationController;
 
   @override
   void initState() {
@@ -72,8 +65,20 @@ class _TrackDetailViewState extends State<_TrackDetailView> {
     _currentTrack = widget.initialTrack;
     _isFavorite = _favService.isFavorite(_currentTrack.id);
 
+    _rotationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat();
+
     _audio.playerStateStream.listen((s) {
-      if (mounted) setState(() => _playerState = s);
+      if (mounted) {
+        setState(() => _playerState = s);
+        if (s == PlayerState.playing) {
+          _rotationController.forward();
+        } else {
+          _rotationController.stop();
+        }
+      }
     });
     _audio.positionStream.listen((p) {
       if (mounted) setState(() => _position = p);
@@ -81,7 +86,6 @@ class _TrackDetailViewState extends State<_TrackDetailView> {
     _audio.durationStream.listen((d) {
       if (mounted) setState(() => _duration = d);
     });
-    // sync current track when service changes it (e.g. from MiniPlayer next)
     _audio.addListener(() {
       if (mounted && _audio.currentTrack != null) {
         setState(() {
@@ -95,77 +99,18 @@ class _TrackDetailViewState extends State<_TrackDetailView> {
     _audio.play(_currentTrack, widget.tracks, widget.currentIndex);
   }
 
+  @override
+  void dispose() {
+    _rotationController.dispose();
+    super.dispose();
+  }
+
   void _goPrev() {
     if (_position.inSeconds > 3) {
       _audio.seek(Duration.zero);
       return;
     }
     _audio.goPrev();
-  }
-
-  void _showColorPicker(BuildContext ctx) {
-    showModalBottomSheet(
-      context: ctx,
-      backgroundColor: const Color(0xFF1E1E1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Choose Theme',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: _themes.map((t) {
-                final color = t['color'] as Color;
-                final label = t['label'] as String;
-                final isSelected = _bgColor == color;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() => _bgColor = color);
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                      content: Text('$label color pan change zala'),
-                      duration: const Duration(seconds: 2),
-                      behavior: SnackBarBehavior.floating,
-                    ));
-                  },
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: color,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isSelected ? Colors.white : Colors.white24,
-                            width: isSelected ? 3 : 1,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(label,
-                          style: const TextStyle(
-                              color: Colors.white60, fontSize: 11)),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
   }
 
   String _fmt(Duration d) {
@@ -185,244 +130,295 @@ class _TrackDetailViewState extends State<_TrackDetailView> {
         : 0.0;
 
     return Scaffold(
-      backgroundColor: _bgColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down,
-              size: 32, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+      backgroundColor: const Color(0xFF0A0A0F),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1A0533), Color(0xFF0A0A0F)],
+          ),
         ),
-        title: const Text('NOW PLAYING',
-            style: TextStyle(
-                fontSize: 12, letterSpacing: 2, color: Colors.white70)),
-        centerTitle: true,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          children: [
-            const SizedBox(height: 24),
-
-            // Album Art
-            BlocBuilder<TrackDetailBloc, TrackDetailState>(
-              builder: (context, state) {
-                final cover = (state.status == TrackDetailStatus.success
-                        ? state.track?.albumCover
-                        : null) ??
-                    _currentTrack.albumCover;
-                return Center(
-                  child: Container(
-                    width: 280,
-                    height: 280,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.5),
-                          blurRadius: 30,
-                          offset: const Offset(0, 15),
-                        ),
-                      ],
+        child: SafeArea(
+          child: Column(
+            children: [
+              // ── Top Bar ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                          size: 32, color: Colors.white70),
+                      onPressed: () => Navigator.pop(context),
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: cover != null
-                          ? Image.network(cover,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _placeholder())
-                          : _placeholder(),
-                    ),
-                  ),
-                );
-              },
-            ),
-
-            const SizedBox(height: 32),
-
-            // Title & Artist
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _currentTrack.title,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    const Expanded(
+                      child: Column(
+                        children: [
+                          Text('NOW PLAYING',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  letterSpacing: 2,
+                                  color: Colors.white38,
+                                  fontWeight: FontWeight.w600)),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _currentTrack.artist,
-                        style: const TextStyle(
-                            color: Colors.white60, fontSize: 16),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                        color: _isFavorite ? const Color(0xFFE85D75) : Colors.white38,
+                        size: 24,
+                      ),
+                      onPressed: () {
+                        _favService.toggle(_currentTrack);
+                        setState(() => _isFavorite = _favService.isFavorite(_currentTrack.id));
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.share_rounded, color: Colors.white38, size: 22),
+                      onPressed: () {
+                        Share.share(
+                          '🎵 ${_currentTrack.title} - ${_currentTrack.artist}\n\nWS Music App वर ऐका!',
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // ── Album Art (rotating disc) ──
+              BlocBuilder<TrackDetailBloc, TrackDetailState>(
+                builder: (context, state) {
+                  final cover = (state.status == TrackDetailStatus.success
+                          ? state.track?.albumCover
+                          : null) ??
+                      _currentTrack.albumCover;
+                  return Center(
+                    child: AnimatedBuilder(
+                      animation: _rotationController,
+                      builder: (_, child) => Transform.rotate(
+                        angle: isPlaying
+                            ? _rotationController.value * 2 * 3.14159
+                            : 0,
+                        child: child,
+                      ),
+                      child: Container(
+                        width: 260,
+                        height: 260,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFB44FE8).withValues(alpha: 0.3),
+                              blurRadius: 40,
+                              spreadRadius: 5,
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: cover != null
+                              ? Image.network(cover,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => _placeholder())
+                              : _placeholder(),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 32),
+
+              // ── Title & Artist ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                  children: [
+                    Text(
+                      _currentTrack.title,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _currentTrack.artist,
+                      style: const TextStyle(
+                          color: Colors.white54, fontSize: 15),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ── Progress Slider ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: 3,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                        activeTrackColor: const Color(0xFFB44FE8),
+                        inactiveTrackColor: Colors.white12,
+                        thumbColor: Colors.white,
+                        overlayColor: const Color(0x33B44FE8),
+                      ),
+                      child: Slider(
+                        value: progress.toDouble(),
+                        onChanged: _currentTrack.preview != null
+                            ? (v) => _audio.seek(Duration(
+                                milliseconds: (v * _duration.inMilliseconds).round()))
+                            : null,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(_fmt(_position),
+                              style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                          Text(
+                            _duration == Duration.zero ? '--:--' : _fmt(_duration),
+                            style: const TextStyle(color: Colors.white38, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Controls ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    // Shuffle
+                    _ctrlBtn(
+                      icon: Icons.shuffle_rounded,
+                      size: 22,
+                      color: _audio.isShuffled ? const Color(0xFFB44FE8) : Colors.white38,
+                      onTap: () => setState(() => _audio.isShuffled = !_audio.isShuffled),
+                    ),
+                    // Previous
+                    _ctrlBtn(
+                      icon: Icons.skip_previous_rounded,
+                      size: 38,
+                      color: Colors.white,
+                      onTap: _goPrev,
+                    ),
+                    // Play/Pause
+                    GestureDetector(
+                      onTap: _currentTrack.preview != null ? _audio.togglePlay : null,
+                      child: Container(
+                        width: 68,
+                        height: 68,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFB44FE8), Color(0xFF7C3AED)],
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFB44FE8).withValues(alpha: 0.4),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: isLoading
+                            ? const Padding(
+                                padding: EdgeInsets.all(18),
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2),
+                              )
+                            : Icon(
+                                isPlaying
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                color: Colors.white,
+                                size: 36,
+                              ),
+                      ),
+                    ),
+                    // Next
+                    _ctrlBtn(
+                      icon: Icons.skip_next_rounded,
+                      size: 38,
+                      color: Colors.white,
+                      onTap: _audio.goNext,
+                    ),
+                    // Repeat
+                    _ctrlBtn(
+                      icon: _audio.repeatMode == 2
+                          ? Icons.repeat_one_rounded
+                          : Icons.repeat_rounded,
+                      size: 22,
+                      color: _audio.repeatMode > 0 ? const Color(0xFFB44FE8) : Colors.white38,
+                      onTap: () => setState(
+                          () => _audio.repeatMode = (_audio.repeatMode + 1) % 3),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── Album name ──
+              if (_currentTrack.albumTitle != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.album_rounded, size: 13, color: Colors.white24),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          _currentTrack.albumTitle!,
+                          style: const TextStyle(color: Colors.white24, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: Icon(
-                    _isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color: _isFavorite ? Colors.red : Colors.white60,
-                    size: 28,
-                  ),
-                  onPressed: () {
-                    _favService.toggle(_currentTrack);
-                    setState(() =>
-                        _isFavorite = _favService.isFavorite(_currentTrack.id));
-                  },
-                ),
-                Tooltip(
-                  message: 'Color Theme',
-                  child: IconButton(
-                    icon: const Icon(Icons.palette_outlined,
-                        color: Colors.white60, size: 26),
-                    onPressed: () => _showColorPicker(context),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 32),
-
-            // Progress Slider
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 4,
-                thumbShape:
-                    const RoundSliderThumbShape(enabledThumbRadius: 6),
-                activeTrackColor: Colors.white,
-                inactiveTrackColor: Colors.white24,
-                thumbColor: Colors.white,
-                overlayColor: Colors.white24,
-              ),
-              child: Slider(
-                value: progress.toDouble(),
-                onChanged: _currentTrack.preview != null
-                    ? (v) => _audio.seek(Duration(
-                        milliseconds: (v * _duration.inMilliseconds).round()))
-                    : null,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(_fmt(_position),
-                      style: const TextStyle(
-                          color: Colors.white54, fontSize: 12)),
-                  Text(
-                    _duration == Duration.zero ? '--:--' : _fmt(_duration),
-                    style:
-                        const TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Controls
-            FittedBox(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // Shuffle
-                  IconButton(
-                    icon: Icon(Icons.shuffle,
-                        color: _audio.isShuffled
-                            ? Colors.white
-                            : Colors.white38,
-                        size: 28),
-                    onPressed: () =>
-                        setState(() => _audio.isShuffled = !_audio.isShuffled),
-                  ),
-                  // Previous
-                  IconButton(
-                    icon: const Icon(Icons.skip_previous,
-                        color: Colors.white, size: 40),
-                    onPressed: _goPrev,
-                  ),
-                  // Play / Pause
-                  GestureDetector(
-                    onTap: _currentTrack.preview != null
-                        ? _audio.togglePlay
-                        : null,
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: _currentTrack.preview != null
-                            ? Colors.white
-                            : Colors.white24,
-                        shape: BoxShape.circle,
-                      ),
-                      child: isLoading
-                          ? const Padding(
-                              padding: EdgeInsets.all(16),
-                              child: CircularProgressIndicator(
-                                  color: Colors.black, strokeWidth: 2),
-                            )
-                          : Icon(
-                              isPlaying ? Icons.pause : Icons.play_arrow,
-                              color: _currentTrack.preview != null
-                                  ? Colors.black
-                                  : Colors.white38,
-                              size: 36,
-                            ),
-                    ),
-                  ),
-                  // Next
-                  IconButton(
-                    icon: const Icon(Icons.skip_next,
-                        color: Colors.white, size: 40),
-                    onPressed: _audio.goNext,
-                  ),
-                  // Repeat
-                  IconButton(
-                    icon: Icon(
-                      _audio.repeatMode == 2
-                          ? Icons.repeat_one
-                          : Icons.repeat,
-                      color: _audio.repeatMode > 0
-                          ? Colors.white
-                          : Colors.white38,
-                      size: 28,
-                    ),
-                    onPressed: () => setState(
-                        () => _audio.repeatMode = (_audio.repeatMode + 1) % 3),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            if (_currentTrack.albumTitle != null)
-              Text(
-                _currentTrack.albumTitle!,
-                style:
-                    const TextStyle(color: Colors.white38, fontSize: 12),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
+  Widget _ctrlBtn({required IconData icon, required double size, required Color color, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Icon(icon, size: size, color: color),
+    );
+  }
+
   Widget _placeholder() => Container(
-        color: const Color(0xFF282828),
-        child: const Icon(Icons.music_note, size: 80, color: Colors.white24),
+        color: const Color(0xFF1E1E2E),
+        child: const Icon(Icons.music_note_rounded, size: 80, color: Colors.white12),
       );
 }
